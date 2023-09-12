@@ -39,12 +39,35 @@
 class TS_Point {
 public:
 	TS_Point(void) : x(0), y(0), z(0) {}
+	TS_Point(int16_t x, int16_t y) : x(x), y(y), z(0) {}
 	TS_Point(int16_t x, int16_t y, int16_t z) : x(x), y(y), z(z) {}
 	bool operator==(TS_Point p) { return ((p.x == x) && (p.y == y) && (p.z == z)); }
 	bool operator!=(TS_Point p) { return ((p.x != x) || (p.y != y) || (p.z != z)); }
 	int16_t x, y, z;
 };
 
+class TS_Calibration {
+public:
+	constexpr TS_Calibration(void):
+		defined(false), 
+		screenWidth(0U), screenHeight(0U),
+		deltaX(0), deltaY(0), 
+		alphaX(0.0F), betaX(0.0F), alphaY(0.0F), betaY(0.0F) {}
+	constexpr TS_Calibration(float aX, float bX, int32_t dX, float aY, float bY, int32_t dY, uint16_t sW, uint16_t sH):
+		defined(true),
+		screenWidth(sW), screenHeight(sH),
+		deltaX(dX), deltaY(dY), 
+		alphaX(aX), betaX(bX), alphaY(aY), betaY(bY) {}
+	TS_Calibration(
+		const TS_Point aS, const TS_Point aT, 
+		const TS_Point bS, const TS_Point bT, 
+		const TS_Point cS, const TS_Point cT, 
+		const uint16_t sW, const uint16_t sH);
+	bool defined;
+	uint16_t screenWidth, screenHeight;
+	int32_t deltaX, deltaY;
+	float alphaX, betaX, alphaY, betaY;
+};
 class XPT2046_Touchscreen {
 public:
 	constexpr XPT2046_Touchscreen(uint8_t cspin, uint8_t tirq=255)
@@ -61,6 +84,7 @@ public:
 	bool bufferEmpty();
 	uint8_t bufferSize() { return 1; }
 	void setRotation(uint8_t n) { rotation = n % 4; }
+	void calibrate(TS_Calibration c) { cal = c; }
 // protected:
 	volatile bool isrWake=true;
 
@@ -70,6 +94,7 @@ private:
 	int16_t xraw=0, yraw=0, zraw=0;
 	uint32_t msraw=0x80000000;
 	SPIClass *_pspi = nullptr;
+	TS_Calibration cal;
 #if defined(_FLEXIO_SPI_H_)
 	FlexIOSPI *_pflexspi = nullptr;
 #endif

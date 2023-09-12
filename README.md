@@ -4,6 +4,8 @@ XPT2046_Touchscreen is a library for the XPT2046 resistive touchscreen controlle
 
 ![ILI9431Test Example Program](doc/ILI9431Test.jpg)
 
+## This version is modified for use with ESP32 with CYD dislay using TcMenu and TFT_eSPI
+
 ## Setup Functions
 
 First, create an instance of the library for your touchscreen.  The digital pin

@@ -20,6 +20,14 @@
  * THE SOFTWARE.
  */
 
+
+#define XPT2046_CLK 25
+#define XPT2046_MISO 39
+#define XPT2046_MOSI 32
+#define XPT2046_CS 33
+#define XPT2046_IRQ 36
+
+
 #include "XPT2046_Touchscreen.h"
 
 #define Z_THRESHOLD     300
@@ -29,11 +37,14 @@
 
 static XPT2046_Touchscreen 	*isrPinptr;
 void isrPin(void);
+SPIClass mySpi = SPIClass(HSPI);
 
 bool XPT2046_Touchscreen::begin(SPIClass &wspi)
 {
-	_pspi = &wspi;
-	_pspi->begin();
+//	_pspi = &wspi;
+	_pspi = &mySpi;
+//	_pspi->begin();
+    _pspi->begin(XPT2046_CLK, XPT2046_MISO, XPT2046_MOSI, XPT2046_CS);
 	pinMode(csPin, OUTPUT);
 	digitalWrite(csPin, HIGH);
 	if (255 != tirqPin) {
@@ -195,6 +206,40 @@ void XPT2046_Touchscreen::update()
 	//Serial.println();
 	if (z >= Z_THRESHOLD) {
 		msraw = now;	// good read completed, set wait
+		if (cal.defined) {
+
+			xraw = cal.alphaX * x + cal.betaX * y + cal.deltaX;
+			yraw = cal.alphaY * x + cal.betaY * y + cal.deltaY;
+
+			int32_t rot_x;
+			int32_t rot_y;
+
+			switch (rotation % 4) {
+			case 0:
+				rot_x = cal.screenWidth - yraw;
+				rot_y = xraw;
+				if (rot_x < 0) { rot_x = 0; }
+				break;
+			case 1:
+				rot_x = xraw;
+				rot_y = yraw;
+				break;
+			case 2:
+				rot_x = yraw;
+				rot_y = cal.screenHeight - xraw;
+				if (rot_y < 0) { rot_y = 0; }
+				break;
+			case 3:
+				rot_x = cal.screenWidth - xraw;
+				rot_y = cal.screenHeight - yraw;
+				if (rot_x < 0) { rot_x = 0; }
+				if (rot_y < 0) { rot_y = 0; }
+				break;
+			}
+			xraw = rot_x;
+			yraw = rot_y;
+		}
+		else {
 		switch (rotation) {
 		  case 0:
 			xraw = 4095 - y;
@@ -209,11 +254,76 @@ void XPT2046_Touchscreen::update()
 			yraw = 4095 - x;
 			break;
 		  default: // 3
-			xraw = 4095 - x;
-			yraw = 4095 - y;
+		    // djrm apply some crude cal here
+			xraw = 4095 - x -400;
+			yraw = 4095 - y -400;
 		}
 	}
 }
+}
 
+TS_Calibration::TS_Calibration(
+	const TS_Point aS, const TS_Point aT,
+	const TS_Point bS, const TS_Point bT,
+	const TS_Point cS, const TS_Point cT,
+	const uint16_t sW, const uint16_t sH) {
 
+	defined      = true;
+	screenWidth  = sW;
+	screenHeight = sH;
 
+	int32_t delta =
+	    ( (aT.x - cT.x) * (bT.y - cT.y) )
+	    -
+	    ( (bT.x - cT.x) * (aT.y - cT.y) );
+
+	alphaX =
+	    (float)
+	      ( ( (aS.x - cS.x) * (bT.y - cT.y) )
+	        -
+	        ( (bS.x - cS.x) * (aT.y - cT.y) ) )
+	    / delta;
+
+	betaX =
+	    (float)
+	      ( ( (aT.x - cT.x) * (bS.x - cS.x) )
+	        -
+	        ( (bT.x - cT.x) * (aS.x - cS.x) ) )
+	    / delta;
+
+	deltaX =
+	    ( ( (uint64_t)aS.x
+	          * ( (bT.x * cT.y) - (cT.x * bT.y) ) )
+	      -
+	      ( (uint64_t)bS.x
+	          * ( (aT.x * cT.y) - (cT.x * aT.y) ) )
+	      +
+	      ( (uint64_t)cS.x
+	          * ( (aT.x * bT.y) - (bT.x * aT.y) ) ) )
+	    / delta;
+
+	alphaY =
+	    (float)
+	      ( ( (aS.y - cS.y) * (bT.y - cT.y) )
+	        -
+	        ( (bS.y - cS.y) * (aT.y - cT.y) ) )
+	    / delta;
+
+	betaY =
+	    (float)
+	      ( ( (aT.x - cT.x) * (bS.y - cS.y) )
+	        -
+	        ( (bT.x - cT.x) * (aS.y - cS.y) ) )
+	    / delta;
+
+	deltaY =
+	    ( ( (uint64_t)aS.y
+	          * (bT.x * cT.y - cT.x * bT.y) )
+	      -
+	      ( (uint64_t)bS.y
+	          * (aT.x * cT.y - cT.x * aT.y) )
+	      +
+	      ( (uint64_t)cS.y
+	          * (aT.x * bT.y - bT.x * aT.y) ) )
+	    / delta;
+}
