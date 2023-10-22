@@ -255,8 +255,18 @@ void XPT2046_Touchscreen::update()
 			break;
 		  default: // 3
 		    // djrm apply some crude cal here
-			xraw = 4095 - x -400;
-			yraw = 4095 - y -400;
+			
+#define  _hmin 360
+#define  _hmax 3700
+#define  _vmin 360
+#define  _vmax 3750
+#define  _hres 4095
+#define  _vres 4095
+			
+          xraw = constrain(map(4095 - x, _hmin, _hmax, 0, _hres), 0, _hres);
+          yraw = constrain(map(4095 - y, _vmin, _vmax, 0, _vres), 0, _vres);
+			
+			
 		}
 	}
 }
